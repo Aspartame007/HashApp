@@ -1,34 +1,25 @@
 package com.example.hashapp;
 
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import android.Manifest;
-import android.app.ProgressDialog;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.net.Uri;
-import android.nfc.Tag;
-import android.os.Bundle;
-import android.os.Handler;
-import android.util.Log;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ProgressBar;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthResult;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.storage.FirebaseStorage;
@@ -36,8 +27,6 @@ import com.google.firebase.storage.OnProgressListener;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
@@ -45,17 +34,14 @@ import java.security.NoSuchAlgorithmException;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PICK_FILE_REQUEST = 2;
-    private Button browse, upload;
     private FirebaseStorage firebaseStorage;
     private FirebaseDatabase firebaseDatabase;
     private Uri uri;                            // URI's are actually urls meant for local storage
     private TextView filename;
-    private String name, path;
+    private String name;
     private ProgressBar progressBar;
     private TextView progress_status;
-    private FileInputStream file;
     private String sha256Hash;
-    private InputStream inputStream;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,8 +50,8 @@ public class MainActivity extends AppCompatActivity {
 
         firebaseStorage = FirebaseStorage.getInstance();
         firebaseDatabase = FirebaseDatabase.getInstance();
-        browse = findViewById(R.id.browse);
-        upload = findViewById(R.id.upload);
+        Button browse = findViewById(R.id.browse);
+        Button upload = findViewById(R.id.upload);
         filename = findViewById(R.id.filename);
         progressBar = findViewById(R.id.progressBar);
         progress_status = findViewById(R.id.progress_status);
@@ -116,9 +102,14 @@ public class MainActivity extends AppCompatActivity {
 
         if (requestCode == PICK_FILE_REQUEST && resultCode == RESULT_OK && data != null) {
             uri = data.getData();               //return uri of selected file
-            path = uri.getPath();
-            name = path.substring(path.lastIndexOf("/") + 1);
-            name = name.substring((name.indexOf(":"))+1);
+            String path = null;
+            if (uri != null) {
+                path = uri.getPath();
+            }
+            if (path != null) {
+                name = path.substring(path.lastIndexOf("/") + 1);
+            }
+            name = name.substring((name.indexOf(":")) + 1);
             filename.setText(name);
 
             try {
@@ -133,68 +124,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void HashGenerator() throws NoSuchAlgorithmException, IOException {
-        Toast.makeText(MainActivity.this, "Generating Hash", Toast.LENGTH_SHORT).show();
         MessageDigest md = MessageDigest.getInstance("sha-256");
-        inputStream =getContentResolver().openInputStream(uri);
+        InputStream inputStream = getContentResolver().openInputStream(uri);
 
 
         byte[] databytes = new byte[1024];
-        int nread = 0;
-        while ((nread = inputStream.read(databytes)) != -1)
-            md.update(databytes, 0, nread);
+        int nread;
+        if (inputStream != null) {
+            while ((nread = inputStream.read(databytes)) != -1)
+                md.update(databytes, 0, nread);
+        }
 
         byte[] messagedigest = md.digest();
-        StringBuffer hexString = new StringBuffer();
+        StringBuilder hexString = new StringBuilder();
 
-        for (int i = 0; i < messagedigest.length; i++) {
-            String h =Integer.toHexString(0xFF & messagedigest[i]);
-            String StrComplete = PrependValue(h, 2);
+        for (byte b : messagedigest) {
+            String h = Integer.toHexString(0xFF & b);
+            String StrComplete = PrependValue(h);
             hexString.append(StrComplete);
         }
         sha256Hash = hexString.toString();
-
-        Toast.makeText(MainActivity.this, sha256Hash, Toast.LENGTH_LONG).show();
     }
 
-    private String PrependValue(String iStr, int NbDigits) {
-        String sReturnedStr = iStr;
-        while (sReturnedStr.length() < NbDigits)
-            sReturnedStr = "0" + sReturnedStr;
-        return sReturnedStr;
+    private String PrependValue(String iStr) {
+        StringBuilder sReturnedStr = new StringBuilder(iStr);
+        while (sReturnedStr.length() < 2)
+            sReturnedStr.insert(0, "0");
+        return sReturnedStr.toString();
     }
-
-    /*private void HashGenerator()throws Exception {
-        Toast.makeText(MainActivity.this, "Generating Hash", Toast.LENGTH_SHORT).show();
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        file = new FileInputStream(path);
-        byte[] dataBytes = new byte[1024];
-
-        int nread = 0;
-
-        while((nread = file.read(dataBytes)) != -1)
-            md.update(dataBytes, 0, nread);
-        Toast.makeText(MainActivity.this, "File Not Found!", Toast.LENGTH_LONG).show();
-
-        byte[] mdbytes = md.digest();
-
-        //convert the byte to hex format method
-        StringBuffer sb = new StringBuffer();
-        for (int i = 0; i < mdbytes.length; i++)
-            sb.append(Integer.toString((mdbytes[i] & 0xff) + 0x100, 16).substring(1));
-
-        sha256Hash = sb.toString();
-        Log.i("Hash: ", sha256Hash);
-        Toast.makeText(MainActivity.this, sha256Hash, Toast.LENGTH_LONG).show();
-    }*/
-
-
-
-
-
-
-
-
-
 
     private void UploadFile() {
         StorageReference storageReference = firebaseStorage.getReference();          //returns root path
@@ -207,8 +164,6 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
                 progressBar.setVisibility(View.GONE);
                 progress_status.setVisibility(View.GONE);
-
-                //Toast.makeText(MainActivity.this, "File Successfully Uploaded", Toast.LENGTH_SHORT).show();
             }
         }).addOnFailureListener(new OnFailureListener() {
             @Override
@@ -216,6 +171,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, "Uploading Failed!", Toast.LENGTH_SHORT).show();
             }
         }).addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
+            @SuppressLint("SetTextI18n")
             @Override
             public void onProgress(@NonNull UploadTask.TaskSnapshot taskSnapshot) {
                 double progress = (100 * taskSnapshot.getBytesTransferred()) / taskSnapshot.getTotalByteCount();
@@ -226,30 +182,6 @@ public class MainActivity extends AppCompatActivity {
 
         name = name.substring(0, name.indexOf("."));
         DatabaseReference databaseReference = firebaseDatabase.getReference();
-        databaseReference.child("Hash Values").child(name).setValue(sha256Hash + " Hash");
-
-        /*storageReference.child("Hash Values").child(sha256Hash).putFile(uri).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
-            @Override
-            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                Toast.makeText(MainActivity.this, "Hash Generated Successfully", Toast.LENGTH_LONG).show();
-            }
-        }).addOnFailureListener(new OnFailureListener() {
-            @Override
-            public void onFailure(@NonNull Exception e) {
-                Toast.makeText(MainActivity.this, "Hash Generation Failed!", Toast.LENGTH_LONG).show();
-            }
-        });*/
-
-        /*.addOnSuccessListener(new OnSuccessListener<Void>() {
-            @Override
-            public void onSuccess(Void aVoid) {
-                Toast.makeText(MainActivity.this, "Hash Generated Successfully", Toast.LENGTH_LONG).show();
-            }
-        }).addOnFailureListener(new OnFailureListener() {
-            @Override
-            public void onFailure(@NonNull Exception e) {
-                Toast.makeText(MainActivity.this, "Hash Generation Failed", Toast.LENGTH_LONG).show();
-            }
-        })*/
+        databaseReference.child("Hash Values").child(name).setValue(sha256Hash);
     }
 }
