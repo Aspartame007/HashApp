@@ -37,7 +37,11 @@ import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class MainActivity extends AppCompatActivity {
     private static final int PICK_FILE_REQUEST = 2;
@@ -51,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView progress_status;
     private FileInputStream file;
     private String sha256Hash;
+    private InputStream inputStream;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,8 +132,39 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void HashGenerator()throws Exception {
-        Toast.makeText(MainActivity.this, "Generating Hash", Toast.LENGTH_LONG).show();
+    private void HashGenerator() throws NoSuchAlgorithmException, IOException {
+        Toast.makeText(MainActivity.this, "Generating Hash", Toast.LENGTH_SHORT).show();
+        MessageDigest md = MessageDigest.getInstance("sha-256");
+        inputStream =getContentResolver().openInputStream(uri);
+
+
+        byte[] databytes = new byte[1024];
+        int nread = 0;
+        while ((nread = inputStream.read(databytes)) != -1)
+            md.update(databytes, 0, nread);
+
+        byte[] messagedigest = md.digest();
+        StringBuffer hexString = new StringBuffer();
+
+        for (int i = 0; i < messagedigest.length; i++) {
+            String h =Integer.toHexString(0xFF & messagedigest[i]);
+            String StrComplete = PrependValue(h, 2);
+            hexString.append(StrComplete);
+        }
+        sha256Hash = hexString.toString();
+
+        Toast.makeText(MainActivity.this, sha256Hash, Toast.LENGTH_LONG).show();
+    }
+
+    private String PrependValue(String iStr, int NbDigits) {
+        String sReturnedStr = iStr;
+        while (sReturnedStr.length() < NbDigits)
+            sReturnedStr = "0" + sReturnedStr;
+        return sReturnedStr;
+    }
+
+    /*private void HashGenerator()throws Exception {
+        Toast.makeText(MainActivity.this, "Generating Hash", Toast.LENGTH_SHORT).show();
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         file = new FileInputStream(path);
         byte[] dataBytes = new byte[1024];
@@ -147,7 +183,18 @@ public class MainActivity extends AppCompatActivity {
             sb.append(Integer.toString((mdbytes[i] & 0xff) + 0x100, 16).substring(1));
 
         sha256Hash = sb.toString();
-    }
+        Log.i("Hash: ", sha256Hash);
+        Toast.makeText(MainActivity.this, sha256Hash, Toast.LENGTH_LONG).show();
+    }*/
+
+
+
+
+
+
+
+
+
 
     private void UploadFile() {
         StorageReference storageReference = firebaseStorage.getReference();          //returns root path
